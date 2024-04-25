@@ -4,6 +4,7 @@ from . import (
     ansys,
     avsucd,
     cgns,
+    dgf,
     dolfin,
     exodus,
     flac3d,
