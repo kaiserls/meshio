@@ -7,24 +7,23 @@ import numpy as np
 
 from ..__about__ import __version__ as version
 from .._common import warn
-from .._exceptions import ReadError, WriteError
+from .._exceptions import ReadError
 from .._files import open_file
 from .._helpers import register_format
-from .._mesh import Mesh, CellBlock
-
+from .._mesh import CellBlock, Mesh
 
 #: Maps DGF cell types to meshio cell types.
 dgf_to_meshio_type = {
-    ("SIMPLEX",2): "line",
-    ("SIMPLEX",3): "triangle",
-    ("CUBE",4): "quad",
+    ("SIMPLEX", 2): "line",
+    ("SIMPLEX", 3): "triangle",
+    ("CUBE", 4): "quad",
 }
 
 #: Maps DGF cell types to meshio cell types.
 meshio_to_dgf_type = {
-    "line": ("SIMPLEX",2),
-    "triangle": ("SIMPLEX",3),
-    "quad": ("CUBE",4),
+    "line": ("SIMPLEX", 2),
+    "triangle": ("SIMPLEX", 3),
+    "quad": ("CUBE", 4),
 }
 
 #: The DGF keywords that are supported by meshio.
@@ -77,6 +76,7 @@ def readline(f):
         if line:
             return line
 
+
 def skip_block(f):
     """Skips a block in a dgf file.
 
@@ -87,6 +87,7 @@ def skip_block(f):
     while line and not line.startswith("#"):
         line = readline(f)
     return
+
 
 def append_cell_block(cells, cell_block, cell_data, block_data):
     """Appends a cell block to the mesh.
@@ -104,6 +105,7 @@ def append_cell_block(cells, cell_block, cell_data, block_data):
             cell_data[varname].append(variable)
         else:
             cell_data[varname] = [variable]
+
 
 def read_buffer(f):
     points = []
@@ -126,7 +128,9 @@ def read_buffer(f):
             cell_block, block_data = _read_cells(f, "CUBE")
             append_cell_block(cells, cell_block, cell_data, block_data)
         elif line.upper().startswith("INTERVAL"):
-            raise ReadError("INTERVAL blocks are not supported by meshio, please use meshzoo to generate the grid.")
+            raise ReadError(
+                "INTERVAL blocks are not supported by meshio, please use meshzoo to generate the grid."
+            )
         elif line.startswith("#"):
             warn("Comment with # found. Skipping line.")
         else:
@@ -135,6 +139,7 @@ def read_buffer(f):
         line = readline(f)
 
     return Mesh(points, cells, point_data, cell_data)
+
 
 def _read_vertex(f):
     """Reads the vertex block of a DGF file.
@@ -157,7 +162,7 @@ def _read_vertex(f):
         line = readline(f)
     else:
         num_parameters = 0
-    
+
     entries_per_line = len(line.split())
     n_dim = entries_per_line - num_parameters
 
@@ -167,13 +172,17 @@ def _read_vertex(f):
             break
         data.append([float(x) for x in line.split()])
         line = readline(f)
-    
+
     # Extract point coordinates and point data
     points = np.array([x[:n_dim] for x in data])
     if num_parameters > 0:
-        point_data = {f"param_{i}": np.array([x[n_dim + i] for x in data],dtype=float) for i in range(num_parameters)}
-    
+        point_data = {
+            f"param_{i}": np.array([x[n_dim + i] for x in data], dtype=float)
+            for i in range(num_parameters)
+        }
+
     return points, point_data
+
 
 def _read_cells(f, block_name):
     """Reads the simplex block of a DGF file and returns the cells and cell data.
@@ -181,7 +190,7 @@ def _read_cells(f, block_name):
     Args:
         f: The file object, already in the start of the simplex block.
         block_name (str): The name of the block.
-    
+
     Returns:
         tuple[np.ndarray, dict]: The cells and cell data.
     """
@@ -196,7 +205,7 @@ def _read_cells(f, block_name):
         line = readline(f)
     else:
         num_parameters = 0
-    
+
     entries_per_cell_definition = len(line.split())
     n_indices = entries_per_cell_definition - num_parameters
 
@@ -214,13 +223,17 @@ def _read_cells(f, block_name):
         dgf_type = ("CUBE", n_indices)
 
     # Extract cell connectivity and cell data
-    cell_connectivity = np.array([x[:n_indices] for x in data],dtype=int)
+    cell_connectivity = np.array([x[:n_indices] for x in data], dtype=int)
     cell_block = CellBlock(dgf_to_meshio_type[dgf_type], cell_connectivity)
     cell_data = {}
     if num_parameters > 0:
-        cell_data = {f"param_{i}": np.array([x[n_indices + i] for x in data], dtype=float) for i in range(num_parameters)}
+        cell_data = {
+            f"param_{i}": np.array([x[n_indices + i] for x in data], dtype=float)
+            for i in range(num_parameters)
+        }
 
-    return cell_block, cell_data    
+    return cell_block, cell_data
+
 
 def write(filename, mesh):
     """Writes a DGF file."""
@@ -228,13 +241,18 @@ def write(filename, mesh):
     with open_file(filename, "w") as f:
         f.write("DGF\n")
         f.write(f'% "Written by meshio v{version}"\n')
-        
+
         # Write vertex block
         f.write("VERTEX\n")
         if len(mesh.point_data) > 0:
-            f.write(f'parameters {len(mesh.point_data)}\n')
+            f.write(f"parameters {len(mesh.point_data)}\n")
             for point, data in zip(mesh.points, mesh.point_data.values()):
-                f.write(" ".join(str(c) for c in point) + " " + " ".join(str(d) for d in data) + "\n")
+                f.write(
+                    " ".join(str(c) for c in point)
+                    + " "
+                    + " ".join(str(d) for d in data)
+                    + "\n"
+                )
         else:
             for point in mesh.points:
                 f.write(" ".join(str(c) for c in point) + "\n")
@@ -253,16 +271,21 @@ def write(filename, mesh):
                 n_cells = len(cell_block.data)
                 parameters = np.zeros((number_of_parameters, n_cells))
                 for pi, (_, parameter_all_blocks) in enumerate(mesh.cell_data.items()):
-                    parameters[pi,:] = parameter_all_blocks[cell_block_index]
-                
+                    parameters[pi, :] = parameter_all_blocks[cell_block_index]
+
                 # write out all cell indices and
                 for cell_index, cell in enumerate(cell_block.data):
-                    f.write(" ".join(str(id) for id in cell) + " " + " ".join(str(d) for d in parameters[:,cell_index] ) + "\n")
+                    f.write(
+                        " ".join(str(id) for id in cell)
+                        + " "
+                        + " ".join(str(d) for d in parameters[:, cell_index])
+                        + "\n"
+                    )
             else:
                 for cell in cell_block.data:
                     f.write(" ".join(str(id) for id in cell) + "\n")
             f.write("#\n")
-        
+
         # Write default boundary domain
         f.write("BOUNDARYDOMAIN\n")
         f.write("default 1\n")
